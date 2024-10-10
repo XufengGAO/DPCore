@@ -58,6 +58,8 @@ def evaluate(description):
                     logger.warning("not resetting model")
             except:
                 logger.warning("not resetting model")
+
+            # TODO: 
             x_test, y_test = load_imagenetc(cfg.CORRUPTION.NUM_EX,
                                            severity, cfg.DATA_DIR, False,
                                            [corruption_type])
@@ -242,6 +244,7 @@ def setup_dpcore(args, model):
     adapt_model = DPCore(net)
     logger.info(f'{args}')
     #TODO: 要重新计算train_info
+    # 需要source data写一个train_loader
     adapt_model.obtain_src_stat()
     return adapt_model
 

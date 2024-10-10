@@ -197,6 +197,20 @@ def load_imagenetc(
 
     return x_test, y_test
 
+# def load_imagenet(
+#         n_examples: Optional[int] = 5000,
+#         data_dir: str = './data',
+#         prepr: str = 'Res256Crop224') -> Tuple[torch.Tensor, torch.Tensor]:
+#     transforms_test = PREPROCESSINGS[prepr]
+#     imagenet = CustomImageFolder(data_dir + '/val', transforms_test)
+    
+#     test_loader = data.DataLoader(imagenet, batch_size=n_examples,
+#                                   shuffle=False, num_workers=4)
+
+#     x_test, y_test, paths = next(iter(test_loader))
+    
+#     return x_test, y_test
+
 def load_imagenetc_cdc(
     n_examples: Optional[int] = 5000,
     severity: int = 5,
