@@ -142,6 +142,34 @@ def load_cifar100c(
     return load_corruptions_cifar(BenchmarkDataset.cifar_100, n_examples,
                                   severity, data_dir, corruptions, shuffle)
 
+def generate_cdc_order(corruptions, num_total_batches):
+    num_domains = len(corruptions)
+    domains = list(range(num_domains))  # Create a list of indices representing the corruptions
+    remaining_batches = {domain: num_total_batches for domain in domains}  # Track remaining batches for each domain
+    domain_order = []
+
+    # Continue until all domains have been exhausted
+    while remaining_batches:
+        # Randomly select one domain from the remaining domains
+        selected_domains = np.random.choice(list(remaining_batches.keys()), 1)
+        selected_domain = selected_domains[0]
+
+        # Randomly choose the number of batches to assign to this domain
+        num_selected_batches = np.random.choice(range(1, remaining_batches[selected_domain] + 1))
+
+        # Deduct the selected number of batches from the remaining batches for this domain
+        remaining_batches[selected_domain] -= num_selected_batches
+
+        # If the domain has no batches left, remove it from the remaining list
+        if remaining_batches[selected_domain] == 0:
+            del remaining_batches[selected_domain]
+
+        # Add the selected domain for the number of selected batches to the order list
+        domain_order.extend([selected_domain] * num_selected_batches)
+
+    return domain_order
+
+
 
 def load_imagenetc(
     n_examples: Optional[int] = 5000,
@@ -169,6 +197,27 @@ def load_imagenetc(
 
     return x_test, y_test
 
+def load_imagenetc_cdc(
+    n_examples: Optional[int] = 5000,
+    severity: int = 5,
+    data_dir: str = './data',
+    shuffle: bool = False,
+    corruptions: Sequence[str] = CORRUPTIONS,
+    prepr: str = 'Res256Crop224'
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    transforms_test = PREPROCESSINGS[prepr]
+
+    assert len(corruptions) == 1, "so far only one corruption is supported (that's how this function is called in eval.py"
+
+    # data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
+    data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
+    imagenet = CustomImageFolder(data_folder_path, transforms_test)
+
+    test_loader = data.DataLoader(imagenet, batch_size=n_examples,
+                                  shuffle=shuffle, num_workers=2)
+
+
+    return iter(test_loader)
 
 CorruptDatasetLoader = Callable[[int, int, str, bool, Sequence[str]],
                                 Tuple[torch.Tensor, torch.Tensor]]

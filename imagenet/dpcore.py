@@ -65,9 +65,10 @@ class DPCore(nn.Module):
         weighted_prompts = None
         if self.coreset:
             weights = calculate_weights(self.coreset, batch_mean, batch_std, self.lamda, self.tau)
+            # coreset_element = (mean, std, prompt_vector)
             weighted_prompts = torch.stack([w * p[2] for w, p in zip(weights, self.coreset)], dim=0).sum(dim=0)
             assert weighted_prompts.shape == self.model.prompts.shape, f'{weighted_prompts.shape} != {self.model.prompts.shape}'
-            self.model.prompts = torch.nn.Parameter(weighted_prompts.cuda())
+            self.model.prompts = torch.nn.Parameter(weighted_prompts.cuda()) # 用weighted prompt替换
             self.model.prompts.requires_grad_(False)
             
             loss_new, _, _ = forward_and_get_loss(x, self.model, self.lamda, self.train_info, with_prompt=True)
@@ -111,12 +112,16 @@ class DPCore(nn.Module):
         #     for _, dl in enumerate(train_loader):
         #         images = dl[0].cuda()
         #         feature = self.model.forward_raw_features(images)
-        #         features.append(feature[:, 0])
+        #         features.append(feature[:, 0])  # maybe [CLS] token
         #         # break
-        #     features = torch.cat(features, dim=0)
+        #     features = torch.cat(features, dim=0) 
         #     self.train_info = torch.std_mean(features, dim=0)
         # del features
-        
+
+        # # save train_info as .pth file
+        # torch.save(self.train_info, './train_info.pth') 
+
+
         self.train_info = torch.load('./train_info.pth')
         # torch.save(self.train_info, '/media/zybeich/FOA/train_info.pth')
         print('===> calculating mean and variance end')
