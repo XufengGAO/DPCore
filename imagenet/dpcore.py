@@ -107,24 +107,25 @@ class DPCore(nn.Module):
     
     def obtain_src_stat(self, train_loader=None):
         print('===> begin calculating mean and variance')
-        # features = []
-        # with torch.no_grad():
-        #     for _, dl in enumerate(train_loader):
-        #         images = dl[0].cuda()
-        #         feature = self.model.forward_raw_features(images)
-        #         features.append(feature[:, 0])  # maybe [CLS] token
-        #         # break
-        #     features = torch.cat(features, dim=0) 
-        #     self.train_info = torch.std_mean(features, dim=0)
-        # del features
+        features = []
+        with torch.no_grad():
+            from tqdm import tqdm
+            for _, dl in tqdm(enumerate(train_loader), total=len(train_loader), desc="Processing batches"):
+                images = dl[0].cuda()
+                feature = self.model.forward_raw_features(images)
+                features.append(feature[:, 0])  # maybe [CLS] token
+                # break
+            features = torch.cat(features, dim=0) 
+            self.train_info = torch.std_mean(features, dim=0)
+        del features
 
-        # # save train_info as .pth file
-        # torch.save(self.train_info, './train_info.pth') 
+        # save train_info as .pth file
+        torch.save(self.train_info, './train_info.pth') 
 
 
         self.train_info = torch.load('./train_info.pth')
         # torch.save(self.train_info, '/media/zybeich/FOA/train_info.pth')
-        print('===> calculating mean and variance end')
+        # print('===> calculating mean and variance end')
 
     def reset(self):
         load_model_and_optimizer(self.model, self.optimizer,

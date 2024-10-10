@@ -243,9 +243,22 @@ def setup_dpcore(args, model):
     net = PromptViT(model, 4).cuda()
     adapt_model = DPCore(net)
     logger.info(f'{args}')
+
     #TODO: 要重新计算train_info
     # 需要source data写一个train_loader
-    adapt_model.obtain_src_stat()
+    # 先给一个fake_src_stat,保存路径记得修改
+    import torchvision.transforms as transforms
+    from robustbench.loaders import CustomImageFolder
+    import torch.utils.data as data
+    data_folder_path = ""
+    trainsforms_test = transforms.Compose([transforms.Resize(256),
+                                         transforms.CenterCrop(224),
+                                         transforms.ToTensor()])
+    train_dataset = CustomImageFolder(data_folder_path, trainsforms_test)
+    train_loader = data.DataLoader(train_dataset, batch_size=100, shuffle=False,
+                                   num_workers=2)
+    adapt_model.obtain_src_stat(train_loader=train_loader)
+
     return adapt_model
 
 if __name__ == '__main__':
