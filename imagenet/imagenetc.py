@@ -17,6 +17,7 @@ from conf import cfg, load_cfg_fom_args
 from vpt import PromptViT
 from dpcore import DPCore
 
+import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,6 @@ def evaluate(description):
             except:
                 logger.warning("not resetting model")
 
-            # TODO: 
             x_test, y_test = load_imagenetc(cfg.CORRUPTION.NUM_EX,
                                            severity, cfg.DATA_DIR, False,
                                            [corruption_type])
@@ -67,7 +67,7 @@ def evaluate(description):
             acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
             err = 1. - acc
             All_error.append(err)
-            logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}")
+            logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}, size of coreset {len(model.coreset)}")
             
     all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
     logger.info(f"All error: {all_error_res}")
@@ -98,11 +98,12 @@ def evaluate_cdc(description):
     # evaluate on each severity and type of corruption in turn
     prev_ct = "x0"
     All_error = []
+    corruption_error = {}
 
     corruptions = cfg.CORRUPTION.TYPE
     num_total_batches = cfg.CORRUPTION.NUM_EX // cfg.TEST.BATCH_SIZE + 1
     cdc_domain_order = generate_cdc_order(corruptions, num_total_batches)
-    
+
     for ii, severity in enumerate(cfg.CORRUPTION.SEVERITY):
         domain_iters = {}
         for i_x, corruption_type in enumerate(cfg.CORRUPTION.TYPE):
@@ -121,23 +122,28 @@ def evaluate_cdc(description):
                                            severity, cfg.DATA_DIR, False,
                                            [corruption_type])
             domain_iters[corruption_type] = domain_iter
+            corruption_error[corruption_type] = []
 
-       
-        for domain in cdc_domain_order:
+        from tqdm import tqdm 
+        for domain in tqdm(cdc_domain_order, desc="Processing batches", unit="batches"):
             data_iter = domain_iters[domain]
 
-            x_test, y_test = next(data_iter)
+            x_test, y_test, path = next(data_iter)
 
             x_test, y_test = x_test.cuda(), y_test.cuda()
             
             acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
             err = 1. - acc
             All_error.append(err)
-            logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}")
+            
+            corruption_error[domain].append(err)
+
+        for corruption_type, error in corruption_error.items():
+            logger.info(f"error % [{corruption_type}{severity}]: {sum(error) / len(error):.2%}")
 
             
-    all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
-    logger.info(f"All error: {all_error_res}")
+    # all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
+    # logger.info(f"All error: {all_error_res}")
     logger.info(f"Mean error: {sum(All_error) / len(All_error):.2%}")
 
 def setup_source(model):
@@ -247,19 +253,20 @@ def setup_dpcore(args, model):
     #TODO: 要重新计算train_info
     # 需要source data写一个train_loader
     # 先给一个fake_src_stat,保存路径记得修改
-    import torchvision.transforms as transforms
-    from robustbench.loaders import CustomImageFolder
-    import torch.utils.data as data
-    data_folder_path = ""
-    trainsforms_test = transforms.Compose([transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                         transforms.ToTensor()])
-    train_dataset = CustomImageFolder(data_folder_path, trainsforms_test)
-    train_loader = data.DataLoader(train_dataset, batch_size=100, shuffle=False,
-                                   num_workers=2)
-    adapt_model.obtain_src_stat(train_loader=train_loader)
+    # import torchvision.transforms as transforms
+    # from robustbench.loaders import CustomImageFolder
+    # import torch.utils.data as data
+    # data_folder_path = "/root/autodl-tmp/data/imagenetc/brightness/5"
+    # trainsforms_test = transforms.Compose([transforms.Resize(256),
+    #                                      transforms.CenterCrop(224),
+    #                                      transforms.ToTensor()])
+    # train_dataset = CustomImageFolder(data_folder_path, trainsforms_test)
+    # train_loader = data.DataLoader(train_dataset, batch_size=100, shuffle=False,
+    #                                num_workers=2)
+
+    adapt_model.obtain_src_stat()
 
     return adapt_model
 
 if __name__ == '__main__':
-    evaluate('"Imagenet-C evaluation.')
+    evaluate_cdc('"Imagenet-C evaluation.')

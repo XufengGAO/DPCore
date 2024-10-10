@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from timm.models.vision_transformer import VisionTransformer, Mlp
-from timm.models.helpers import checkpoint_seq
+# from timm.models.helpers import checkpoint_seq
 import math
 from functools import reduce
 from operator import mul

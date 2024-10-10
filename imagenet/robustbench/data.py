@@ -166,8 +166,10 @@ def generate_cdc_order(corruptions, num_total_batches):
 
         # Add the selected domain for the number of selected batches to the order list
         domain_order.extend([selected_domain] * num_selected_batches)
+    
+    mapped_domain_order = [corruptions[idx] for idx in domain_order]
 
-    return domain_order
+    return mapped_domain_order
 
 
 
@@ -186,7 +188,6 @@ def load_imagenetc(
     #  or alternatively creating yet another CustomImageFolder class that fetches images from multiple corruption types
     #  at once -- perhaps this is a cleaner solution)
 
-    # data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
     data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
     imagenet = CustomImageFolder(data_folder_path, transforms_test)
 

@@ -58,6 +58,8 @@ class CustomDatasetFolder(VisionDataset):
         self.transform = transform
         self.target_transform = target_transform
         classes, class_to_idx = self._find_classes(self.root)
+
+        #TODO:固定使用5000张
         samples = make_custom_dataset(self.root, 'robustbench/data/imagenet_test_image_ids.txt',
                                       'robustbench/data/imagenet_class_to_id_map.json')
         if len(samples) == 0:
