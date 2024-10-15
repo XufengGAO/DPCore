@@ -46,32 +46,47 @@ def evaluate(description):
         model = setup_dpcore(args, base_model)
     # evaluate on each severity and type of corruption in turn
     prev_ct = "x0"
-    All_error = []
-    for ii, severity in enumerate(cfg.CORRUPTION.SEVERITY):
-        for i_x, corruption_type in enumerate(cfg.CORRUPTION.TYPE):
-            # reset adaptation for each combination of corruption x severity
-            # note: for evaluation protocol, but not necessarily needed
-            try:
-                if i_x == 0:
-                    model.reset()
-                    logger.info("resetting model")
-                else:
+    
+    num_rounds = 8
+    round_error = []
+    for round in range(1, num_rounds+1):
+        All_error = []
+        for ii, severity in enumerate(cfg.CORRUPTION.SEVERITY):
+            for i_x, corruption_type in enumerate(cfg.CORRUPTION.TYPE):
+                # reset adaptation for each combination of corruption x severity
+                # note: for evaluation protocol, but not necessarily needed
+                try:
+                    if i_x == 0 and round == 1:
+                        model.reset()
+                        logger.info("resetting model")
+                    else:
+                        pass
+                        # logger.warning("not resetting model")
+                except:
                     logger.warning("not resetting model")
-            except:
-                logger.warning("not resetting model")
 
-            x_test, y_test = load_imagenetc(cfg.CORRUPTION.NUM_EX,
-                                           severity, cfg.DATA_DIR, False,
-                                           [corruption_type])
-            x_test, y_test = x_test.cuda(), y_test.cuda()
-            acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
-            err = 1. - acc
-            All_error.append(err)
-            logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}, size of coreset {len(model.coreset)}")
-            
-    all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
-    logger.info(f"All error: {all_error_res}")
-    logger.info(f"Mean error: {sum(All_error) / len(All_error):.2%}")
+                x_test, y_test = load_imagenetc(cfg.CORRUPTION.NUM_EX,
+                                            severity, cfg.DATA_DIR, False,
+                                            [corruption_type])
+                x_test, y_test = x_test.cuda(), y_test.cuda()
+                acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
+                err = 1. - acc
+                All_error.append(err)
+                # logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}, coreset size {len(model.coreset)}")
+                logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}")
+
+                # measure elan error after adapting to each corruption
+
+                
+        # all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
+        # logger.info(f"Round: {round}, All error: {all_error_res}")
+        logger.info(f"Round: {round}, Mean error: {sum(All_error) / len(All_error):.2%}")
+        logger.info(f"Round: {round}, Coreset size: {len(model.coreset)}")
+        round_error.append(sum(All_error) / len(All_error))
+
+    all_error_res = ' '.join([f"{e:.2%}" for e in round_error])
+    logger.info(f"All Round Error: {all_error_res}")
+    
 
 # TODO: 测试 cdc
 def evaluate_cdc(description):
@@ -137,6 +152,7 @@ def evaluate_cdc(description):
             All_error.append(err)
             
             corruption_error[domain].append(err)
+            logger.info(f"{domain}: {err:.2%}, size of coreset {len(model.coreset)}")
 
         for corruption_type, error in corruption_error.items():
             logger.info(f"error % [{corruption_type}{severity}]: {sum(error) / len(error):.2%}")
@@ -269,4 +285,4 @@ def setup_dpcore(args, model):
     return adapt_model
 
 if __name__ == '__main__':
-    evaluate_cdc('"Imagenet-C evaluation.')
+    evaluate('"Imagenet-C evaluation.')
