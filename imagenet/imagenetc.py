@@ -88,7 +88,126 @@ def evaluate(description):
     logger.info(f"All Round Error: {all_error_res}")
     
 
-# TODO: 测试 cdc
+import webdataset as wds
+import torchvision.transforms as trn
+import os
+def identity(x):
+    return x
+def get_webds_loader(dset_name):
+    #url = os.path.join(dset_path, "serial_{{00000..99999}}.tar") Uncoment this to use a local copy of CCC
+    url = f'https://mlcloud.uni-tuebingen.de:7443/datasets/CCC/{dset_name}/serial_{{00000..99999}}.tar'
+
+    normalize = trn.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    preproc = trn.Compose(
+        [
+            trn.ToTensor(),
+            normalize,
+        ]
+    )
+    dataset = (
+        wds.WebDataset(url)
+        .decode("pil")
+        .to_tuple("input.jpg", "output.cls")
+        .map_tuple(preproc, identity)
+    )
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, batch_size=64)
+    return dataloader
+
+def evaluate_ccc(description):
+
+    args = load_cfg_fom_args(description)
+    # configure model
+    base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
+                       cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
+    logger.info("CDC Setting")
+    if cfg.MODEL.ADAPTATION == "source":
+        logger.info("test-time adaptation: NONE")
+        model = setup_source(base_model)
+    if cfg.MODEL.ADAPTATION == "tent":
+        logger.info("test-time adaptation: TENT")
+        model = setup_tent(base_model)
+    if cfg.MODEL.ADAPTATION == "cotta":
+        logger.info("test-time adaptation: CoTTA")
+        model = setup_cotta(base_model)
+    if cfg.MODEL.ADAPTATION == "vida":
+        logger.info("test-time adaptation: ViDA")
+        model = setup_vida(args, base_model)
+    if cfg.MODEL.ADAPTATION == "dpcore":
+        logger.info("test-time adaptation: DPCore")
+        model = setup_dpcore(args, base_model)
+    # evaluate on each severity and type of corruption in turn
+
+    # baseline acc: 0, 20, 40
+    # processind  |  cur_seed  |  speed
+    # ---------------------------------
+    #     0       |     43     |  1000
+    #     1       |     44     |  1000
+    #     2       |     45     |  1000
+    #     3       |     43     |  2000
+    #     4       |     44     |  2000
+    #     5       |     45     |  2000
+    #     6       |     43     |  5000
+    #     7       |     44     |  5000
+    #     8       |     45     |  5000
+    baseline = 20
+    processind = 0
+    cur_seed = [43, 44, 45][processind % 3]
+    speed = [1000, 2000, 5000][int(processind / 3)]
+
+    logs = "/root/DPCore/imagenet/output"
+    exp_name = "ccc_{}".format(str(baseline))
+
+    if not os.path.exists(os.path.join(logs, exp_name)):
+        os.mkdir(os.path.join(logs, exp_name))
+
+    file_name = os.path.join(
+        logs,
+        exp_name,
+        "model_{}_baseline_{}_transition+speed_{}_seed_{}.txt".format(
+            str(args.mode), str(args.baseline), str(speed), str(cur_seed)
+        ),
+    )
+
+    dset_name = "baseline_{}_transition+speed_{}_seed_{}".format(
+        str(baseline), str(speed), str(cur_seed)
+    )
+    total_seen_so_far = 0
+    dataset_loader = get_webds_loader(dset_name)
+
+    logger.info(dset_name)
+
+    model.reset()
+    logger.info("resetting model")
+
+    for i, (images, labels) in enumerate(dataset_loader):
+        images, labels = images.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+        output = model(images)
+        output = output[0] if isinstance(output, tuple) else output
+
+        num_images_in_batch = images.size(0)
+        total_seen_so_far += num_images_in_batch
+
+        vals, pred = (output).max(dim=1, keepdim=True)
+        correct_this_batch = pred.eq(labels.view_as(pred)).sum().item()
+
+        with open(file_name, "a+") as f:
+            f.write(
+                ("acc_{:.10f}\n").format(
+                    float(100 * correct_this_batch) / images.size(0)
+                )
+            )
+        logger.info(
+            ("acc_{:.10f}\n").format(
+                    float(100 * correct_this_batch) / images.size(0)
+            )
+        )
+        if total_seen_so_far > 7500000:
+            return
+
+
+
+
+# 
 def evaluate_cdc(description):
     args = load_cfg_fom_args(description)
     # configure model
