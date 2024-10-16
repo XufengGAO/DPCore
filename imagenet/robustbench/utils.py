@@ -202,11 +202,12 @@ def clean_accuracy(model: nn.Module,
                    x: torch.Tensor,
                    y: torch.Tensor,
                    batch_size: int = 100,
-                   device: torch.device = None):
+                   device: torch.device = None, logger = None,):
     if device is None:
         device = x.device
     acc = 0.
     n_batches = math.ceil(x.shape[0] / batch_size)
+    
     with torch.no_grad():
         for counter in range(n_batches):
             x_curr = x[counter * batch_size:(counter + 1) *
@@ -217,6 +218,10 @@ def clean_accuracy(model: nn.Module,
             output = model(x_curr) 
             output = output[0] if isinstance(output, tuple) else output
             acc += (output.max(1)[1] == y_curr).float().sum()
+            cur_acc = (output.max(1)[1] == y_curr).float().sum() / x_curr.shape[0]
+
+            if logger:
+                logger.info(f"Current batch acc % {cur_acc:.3%}")
 
     return acc.item() / x.shape[0]
 

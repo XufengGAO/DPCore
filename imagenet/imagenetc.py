@@ -47,7 +47,7 @@ def evaluate(description):
     # evaluate on each severity and type of corruption in turn
     prev_ct = "x0"
     
-    num_rounds = 8
+    num_rounds = 1
     round_error = []
     for round in range(1, num_rounds+1):
         All_error = []
@@ -69,7 +69,7 @@ def evaluate(description):
                                             severity, cfg.DATA_DIR, False,
                                             [corruption_type])
                 x_test, y_test = x_test.cuda(), y_test.cuda()
-                acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
+                acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE, logger=logger)
                 err = 1. - acc
                 All_error.append(err)
                 # logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}, coreset size {len(model.coreset)}")
@@ -119,7 +119,8 @@ def evaluate_ccc(description):
     # configure model
     base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
                        cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
-    logger.info("CDC Setting")
+    
+    logger.info("CCC Setting")
     if cfg.MODEL.ADAPTATION == "source":
         logger.info("test-time adaptation: NONE")
         model = setup_source(base_model)
@@ -150,23 +151,23 @@ def evaluate_ccc(description):
     #     7       |     44     |  5000
     #     8       |     45     |  5000
     baseline = 20
-    processind = 0
+    processind = 7
     cur_seed = [43, 44, 45][processind % 3]
     speed = [1000, 2000, 5000][int(processind / 3)]
 
     logs = "/root/DPCore/imagenet/output"
     exp_name = "ccc_{}".format(str(baseline))
 
-    if not os.path.exists(os.path.join(logs, exp_name)):
-        os.mkdir(os.path.join(logs, exp_name))
+    # if not os.path.exists(os.path.join(logs, exp_name)):
+    #     os.mkdir(os.path.join(logs, exp_name))
 
-    file_name = os.path.join(
-        logs,
-        exp_name,
-        "model_{}_baseline_{}_transition+speed_{}_seed_{}.txt".format(
-            str(args.mode), str(args.baseline), str(speed), str(cur_seed)
-        ),
-    )
+    # file_name = os.path.join(
+    #     logs,
+    #     exp_name,
+    #     "model_{}_baseline_{}_transition+speed_{}_seed_{}.txt".format(
+    #         str(cfg.MODEL.ADAPTATION), str(baseline), str(speed), str(cur_seed)
+    #     ),
+    # )
 
     dset_name = "baseline_{}_transition+speed_{}_seed_{}".format(
         str(baseline), str(speed), str(cur_seed)
@@ -190,15 +191,15 @@ def evaluate_ccc(description):
         vals, pred = (output).max(dim=1, keepdim=True)
         correct_this_batch = pred.eq(labels.view_as(pred)).sum().item()
 
-        with open(file_name, "a+") as f:
-            f.write(
-                ("acc_{:.10f}\n").format(
-                    float(100 * correct_this_batch) / images.size(0)
-                )
-            )
+        # with open(file_name, "a+") as f:
+        #     f.write(
+        #         ("acc = {:.10f}, coreset_size = {}").format(
+        #             float(100 * correct_this_batch) / images.size(0), len(model.coreset)
+        #         )
+        #     )
         logger.info(
-            ("acc_{:.10f}\n").format(
-                    float(100 * correct_this_batch) / images.size(0)
+            ("# os {}, acc = {:.10f}, coreset size = {}").format(
+                    total_seen_so_far, float(100 * correct_this_batch) / images.size(0), len(model.coreset)
             )
         )
         if total_seen_so_far > 7500000:
@@ -404,4 +405,4 @@ def setup_dpcore(args, model):
     return adapt_model
 
 if __name__ == '__main__':
-    evaluate('"Imagenet-C evaluation.')
+    evaluate_ccc('"Imagenet-C evaluation.')
