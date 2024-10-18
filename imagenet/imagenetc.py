@@ -19,6 +19,10 @@ from dpcore import DPCore
 
 import pdb
 
+import webdataset as wds
+import torchvision.transforms as trn
+import os
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,9 +92,7 @@ def evaluate(description):
     logger.info(f"All Round Error: {all_error_res}")
     
 
-import webdataset as wds
-import torchvision.transforms as trn
-import os
+
 def identity(x):
     return x
 def get_webds_loader(dset_name):
@@ -177,12 +179,13 @@ def evaluate_ccc(description):
 
     logger.info(dset_name)
 
-    model.reset()
+    # model.reset()
     logger.info("resetting model")
 
     for i, (images, labels) in enumerate(dataset_loader):
         images, labels = images.cuda(non_blocking=True), labels.cuda(non_blocking=True)
-        output = model(images)
+        with torch.no_grad():
+            output = model(images)
         output = output[0] if isinstance(output, tuple) else output
 
         num_images_in_batch = images.size(0)
@@ -197,18 +200,19 @@ def evaluate_ccc(description):
         #             float(100 * correct_this_batch) / images.size(0), len(model.coreset)
         #         )
         #     )
+        # logger.info(
+        #     ("# os {}, acc = {:.10f}, coreset size = {}").format(
+        #             total_seen_so_far, float(100 * correct_this_batch) / images.size(0), len(model.coreset)
+        #     )
+        # )
         logger.info(
-            ("# os {}, acc = {:.10f}, coreset size = {}").format(
-                    total_seen_so_far, float(100 * correct_this_batch) / images.size(0), len(model.coreset)
+            ("# os {}, acc = {:.10f},").format(
+                    total_seen_so_far, float(100 * correct_this_batch) / images.size(0), 
             )
         )
         if total_seen_so_far > 7500000:
             return
 
-
-
-
-# 
 def evaluate_cdc(description):
     args = load_cfg_fom_args(description)
     # configure model

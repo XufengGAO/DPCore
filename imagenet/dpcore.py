@@ -90,7 +90,7 @@ class DPCore(nn.Module):
                 self.model.prompts = torch.nn.Parameter(weighted_prompts.cuda())
                 optimizer = torch.optim.AdamW([self.model.prompts], lr=1e-1, weight_decay=1e-5)
                 outputs, loss, batch_mean, batch_std = forward_and_adapt(x, self.model, optimizer, self.lamda, self.train_info)
-            # self._update_coreset(weights, batch_mean, batch_std)
+            self._update_coreset(weights, batch_mean, batch_std)
             
         else:
             
