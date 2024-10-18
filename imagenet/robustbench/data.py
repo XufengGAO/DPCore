@@ -216,10 +216,10 @@ def load_imagenetc_custom(
     imagenet = CustomImageFolder(data_folder_path, transforms_test)
 
     test_loader = data.DataLoader(imagenet, batch_size=n_examples,
-                                  shuffle=shuffle, num_workers=2)
+                                  shuffle=shuffle, num_workers=2,)
 
 
-    return iter(test_loader)
+    return test_loader
 
 CorruptDatasetLoader = Callable[[int, int, str, bool, Sequence[str]],
                                 Tuple[torch.Tensor, torch.Tensor]]

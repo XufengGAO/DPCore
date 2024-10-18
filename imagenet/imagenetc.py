@@ -3,7 +3,7 @@ import logging
 import torch
 import torch.optim as optim
 
-from robustbench.data import load_imagenetc, generate_cdc_order, load_imagenetc_cdc
+from robustbench.data import load_imagenetc, generate_cdc_order, load_imagenetc_custom
 from robustbench.model_zoo.enums import ThreatModel
 from robustbench.utils import load_model
 from robustbench.utils import clean_accuracy as accuracy
@@ -23,16 +23,16 @@ import webdataset as wds
 import torchvision.transforms as trn
 import os
 
+from tqdm import tqdm 
+
 logger = logging.getLogger(__name__)
 
-
-
-def evaluate(description):
+def set_model(description):
     args = load_cfg_fom_args(description)
     # configure model
     base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
                        cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
-    logger.info("CSC Setting")
+
     if cfg.MODEL.ADAPTATION == "source":
         logger.info("test-time adaptation: NONE")
         model = setup_source(base_model)
@@ -48,10 +48,16 @@ def evaluate(description):
     if cfg.MODEL.ADAPTATION == "dpcore":
         logger.info("test-time adaptation: DPCore")
         model = setup_dpcore(args, base_model)
-    # evaluate on each severity and type of corruption in turn
-    prev_ct = "x0"
+
+    model_name = cfg.MODEL.ADAPTATION
+    return model, model_name
+
+def evaluate_csc(description):
+    logger.info("CSC Setting")
     
-    num_rounds = 1
+    model, model_name = set_model(description)
+    
+    num_rounds = 10
     round_error = []
     for round in range(1, num_rounds+1):
         All_error = []
@@ -61,40 +67,55 @@ def evaluate(description):
                 # note: for evaluation protocol, but not necessarily needed
                 try:
                     if i_x == 0 and round == 1:
-                        model.reset()
-                        logger.info("resetting model")
+                        if hasattr(model, 'rest'):
+                            model.reset()
+                            logger.info("resetting model")
                     else:
                         pass
                         # logger.warning("not resetting model")
                 except:
                     logger.warning("not resetting model")
 
-                x_test, y_test = load_imagenetc(cfg.CORRUPTION.NUM_EX,
-                                            severity, cfg.DATA_DIR, False,
-                                            [corruption_type])
-                x_test, y_test = x_test.cuda(), y_test.cuda()
-                acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE, logger=logger)
-                err = 1. - acc
-                All_error.append(err)
-                # logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}, coreset size {len(model.coreset)}")
-                logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}")
 
                 # measure elan error after adapting to each corruption
+                test_loader = load_imagenetc_custom(cfg.TEST.BATCH_SIZE,
+                                            severity, cfg.DATA_DIR, True,
+                                                        [corruption_type])
+                total_samples = 0
+                acc = 0.
+                for batch_idx, (x_test, y_test, _) in enumerate(test_loader):
+                    x_test, y_test = x_test.cuda(), y_test.cuda()
 
-                
-        # all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
-        # logger.info(f"Round: {round}, All error: {all_error_res}")
+                    output = model(x_test) 
+                    output = output[0] if isinstance(output, tuple) else output
+                    acc += (output.max(1)[1] == y_test).float().sum()
+                    cur_acc = (output.max(1)[1] == y_test).float().sum() / x_test.shape[0]
+
+                    total_samples += x_test.shape[0]
+
+                    logger.info(f"Current batch {batch_idx} acc % {cur_acc:.3%}")
+
+                acc = acc.item() / total_samples
+                err = 1. - acc
+                All_error.append(err)
+
+                logger.info(f"Round: {round}, error % [{corruption_type}{severity}]: {err:.2%}"
+                            f"{', coreset size ' + str(len(model.coreset)) if model_name == 'dpcore' else ''}")
+
+        all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
+        logger.info(f"Round: {round}, All error: {all_error_res}")
         logger.info(f"Round: {round}, Mean error: {sum(All_error) / len(All_error):.2%}")
-        logger.info(f"Round: {round}, Coreset size: {len(model.coreset)}")
+        if model_name == 'dpcore':
+            logger.info(f"Round: {round}, Coreset size: {len(model.coreset)}")
         round_error.append(sum(All_error) / len(All_error))
 
     all_error_res = ' '.join([f"{e:.2%}" for e in round_error])
     logger.info(f"All Round Error: {all_error_res}")
     
 
-
 def identity(x):
     return x
+
 def get_webds_loader(dset_name):
     #url = os.path.join(dset_path, "serial_{{00000..99999}}.tar") Uncoment this to use a local copy of CCC
     url = f'https://mlcloud.uni-tuebingen.de:7443/datasets/CCC/{dset_name}/serial_{{00000..99999}}.tar'
@@ -116,29 +137,9 @@ def get_webds_loader(dset_name):
     return dataloader
 
 def evaluate_ccc(description):
-
-    args = load_cfg_fom_args(description)
-    # configure model
-    base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
-                       cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
-    
     logger.info("CCC Setting")
-    if cfg.MODEL.ADAPTATION == "source":
-        logger.info("test-time adaptation: NONE")
-        model = setup_source(base_model)
-    if cfg.MODEL.ADAPTATION == "tent":
-        logger.info("test-time adaptation: TENT")
-        model = setup_tent(base_model)
-    if cfg.MODEL.ADAPTATION == "cotta":
-        logger.info("test-time adaptation: CoTTA")
-        model = setup_cotta(base_model)
-    if cfg.MODEL.ADAPTATION == "vida":
-        logger.info("test-time adaptation: ViDA")
-        model = setup_vida(args, base_model)
-    if cfg.MODEL.ADAPTATION == "dpcore":
-        logger.info("test-time adaptation: DPCore")
-        model = setup_dpcore(args, base_model)
-    # evaluate on each severity and type of corruption in turn
+    
+    model, model_name = set_model(description)
 
     # baseline acc: 0, 20, 40
     # processind  |  cur_seed  |  speed
@@ -152,13 +153,14 @@ def evaluate_ccc(description):
     #     6       |     43     |  5000
     #     7       |     44     |  5000
     #     8       |     45     |  5000
+
     baseline = 20
     processind = 7
     cur_seed = [43, 44, 45][processind % 3]
     speed = [1000, 2000, 5000][int(processind / 3)]
 
-    logs = "/root/DPCore/imagenet/output"
-    exp_name = "ccc_{}".format(str(baseline))
+    # logs = "/root/DPCore/imagenet/output"
+    # exp_name = "ccc_{}".format(str(baseline))
 
     # if not os.path.exists(os.path.join(logs, exp_name)):
     #     os.mkdir(os.path.join(logs, exp_name))
@@ -167,7 +169,7 @@ def evaluate_ccc(description):
     #     logs,
     #     exp_name,
     #     "model_{}_baseline_{}_transition+speed_{}_seed_{}.txt".format(
-    #         str(cfg.MODEL.ADAPTATION), str(baseline), str(speed), str(cur_seed)
+    #         str(model_name), str(baseline), str(speed), str(cur_seed)
     #     ),
     # )
 
@@ -179,8 +181,9 @@ def evaluate_ccc(description):
 
     logger.info(dset_name)
 
-    # model.reset()
-    logger.info("resetting model")
+    if hasattr(model, 'rest'):
+        model.reset()
+        logger.info("resetting model")
 
     for i, (images, labels) in enumerate(dataset_loader):
         images, labels = images.cuda(non_blocking=True), labels.cuda(non_blocking=True)
@@ -194,48 +197,26 @@ def evaluate_ccc(description):
         vals, pred = (output).max(dim=1, keepdim=True)
         correct_this_batch = pred.eq(labels.view_as(pred)).sum().item()
 
-        # with open(file_name, "a+") as f:
-        #     f.write(
-        #         ("acc = {:.10f}, coreset_size = {}").format(
-        #             float(100 * correct_this_batch) / images.size(0), len(model.coreset)
-        #         )
-        #     )
-        # logger.info(
-        #     ("# os {}, acc = {:.10f}, coreset size = {}").format(
-        #             total_seen_so_far, float(100 * correct_this_batch) / images.size(0), len(model.coreset)
-        #     )
-        # )
-        logger.info(
-            ("# os {}, acc = {:.10f},").format(
-                    total_seen_so_far, float(100 * correct_this_batch) / images.size(0), 
-            )
+        log_message = "# os {}, acc = {:.10f}".format(
+            total_seen_so_far,
+            float(100 * correct_this_batch) / images.size(0)
         )
+
+        # Check if the model name is 'dpcore'
+        if model_name == 'dpcore': 
+            coreset_size = len(model.coreset)  # Get coreset size
+            log_message += ", coreset size = {}".format(coreset_size)  # Append coreset size
+
+        logger.info(log_message)
+
         if total_seen_so_far > 7500000:
             return
 
 def evaluate_cdc(description):
-    args = load_cfg_fom_args(description)
-    # configure model
-    base_model = load_model(cfg.MODEL.ARCH, cfg.CKPT_DIR,
-                       cfg.CORRUPTION.DATASET, ThreatModel.corruptions).cuda()
     logger.info("CDC Setting")
-    if cfg.MODEL.ADAPTATION == "source":
-        logger.info("test-time adaptation: NONE")
-        model = setup_source(base_model)
-    if cfg.MODEL.ADAPTATION == "tent":
-        logger.info("test-time adaptation: TENT")
-        model = setup_tent(base_model)
-    if cfg.MODEL.ADAPTATION == "cotta":
-        logger.info("test-time adaptation: CoTTA")
-        model = setup_cotta(base_model)
-    if cfg.MODEL.ADAPTATION == "vida":
-        logger.info("test-time adaptation: ViDA")
-        model = setup_vida(args, base_model)
-    if cfg.MODEL.ADAPTATION == "dpcore":
-        logger.info("test-time adaptation: DPCore")
-        model = setup_dpcore(args, base_model)
-    # evaluate on each severity and type of corruption in turn
-    prev_ct = "x0"
+
+    model, model_name = set_model(description)
+
     All_error = []
     corruption_error = {}
 
@@ -250,24 +231,24 @@ def evaluate_cdc(description):
             # note: for evaluation protocol, but not necessarily needed
             try:
                 if i_x == 0:
-                    model.reset()
-                    logger.info("resetting model")
+                    if hasattr(model, 'rest'):
+                        model.reset()
+                        logger.info("resetting model")
                 else:
                     logger.warning("not resetting model")
             except:
                 logger.warning("not resetting model")
 
-            domain_iter = load_imagenetc_cdc(cfg.TEST.BATCH_SIZE,
-                                           severity, cfg.DATA_DIR, False,
+            domain_data_loader = load_imagenetc_custom(cfg.TEST.BATCH_SIZE,
+                                           severity, cfg.DATA_DIR, True,
                                            [corruption_type])
-            domain_iters[corruption_type] = domain_iter
+            domain_iters[corruption_type] = iter(domain_data_loader)
             corruption_error[corruption_type] = []
 
-        from tqdm import tqdm 
         for domain in tqdm(cdc_domain_order, desc="Processing batches", unit="batches"):
             data_iter = domain_iters[domain]
 
-            x_test, y_test, path = next(data_iter)
+            x_test, y_test, _ = next(data_iter)
 
             x_test, y_test = x_test.cuda(), y_test.cuda()
             
@@ -276,14 +257,12 @@ def evaluate_cdc(description):
             All_error.append(err)
             
             corruption_error[domain].append(err)
-            logger.info(f"{domain}: {err:.2%}, size of coreset {len(model.coreset)}")
+            if model_name == 'dpcore':
+                logger.info(f"{domain}: {err:.2%}, size of coreset {len(model.coreset)}")
 
         for corruption_type, error in corruption_error.items():
             logger.info(f"error % [{corruption_type}{severity}]: {sum(error) / len(error):.2%}")
 
-            
-    # all_error_res = ' '.join([f"{e:.2%}" for e in All_error])
-    # logger.info(f"All error: {all_error_res}")
     logger.info(f"Mean error: {sum(All_error) / len(All_error):.2%}")
 
 def setup_source(model):
@@ -309,7 +288,6 @@ def setup_tent(model):
     logger.info(f"params for adaptation: %s", param_names)
     logger.info(f"optimizer for adaptation: %s", optimizer)
     return tent_model
-
 
 def setup_optimizer(params):
     """Set up optimizer for tent adaptation.
@@ -409,4 +387,4 @@ def setup_dpcore(args, model):
     return adapt_model
 
 if __name__ == '__main__':
-    evaluate_ccc('"Imagenet-C evaluation.')
+    evaluate_csc('"Imagenet-C evaluation.')
