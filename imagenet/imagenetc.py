@@ -57,7 +57,7 @@ def evaluate_csc(description):
     
     model, model_name = set_model(description)
     
-    num_rounds = 10
+    num_rounds = 1
     round_error = []
     for round in range(1, num_rounds+1):
         All_error = []
@@ -83,17 +83,18 @@ def evaluate_csc(description):
                                                         [corruption_type])
                 total_samples = 0
                 acc = 0.
-                for batch_idx, (x_test, y_test, _) in enumerate(test_loader):
-                    x_test, y_test = x_test.cuda(), y_test.cuda()
+                with torch.no_grad():
+                    for batch_idx, (x_test, y_test, _) in enumerate(test_loader):
+                        x_test, y_test = x_test.cuda(), y_test.cuda()
 
-                    output = model(x_test) 
-                    output = output[0] if isinstance(output, tuple) else output
-                    acc += (output.max(1)[1] == y_test).float().sum()
-                    cur_acc = (output.max(1)[1] == y_test).float().sum() / x_test.shape[0]
+                        output = model(x_test) 
+                        output = output[0] if isinstance(output, tuple) else output
+                        acc += (output.max(1)[1] == y_test).float().sum()
+                        cur_acc = (output.max(1)[1] == y_test).float().sum() / x_test.shape[0]
 
-                    total_samples += x_test.shape[0]
+                        total_samples += x_test.shape[0]
 
-                    logger.info(f"Current batch {batch_idx} acc % {cur_acc:.3%}")
+                        logger.info(f"Current batch {batch_idx} acc % {cur_acc:.3%}")
 
                 acc = acc.item() / total_samples
                 err = 1. - acc
