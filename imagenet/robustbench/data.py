@@ -217,7 +217,7 @@ def load_imagenetc_custom(
     imagenet = CustomImageFolder(data_folder_path, transforms_test)
 
     test_loader = data.DataLoader(imagenet, batch_size=n_examples,
-                                  shuffle=shuffle, num_workers=0,)
+                                  shuffle=shuffle, num_workers=2,)
 
 
     return test_loader

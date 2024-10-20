@@ -91,7 +91,7 @@ class DPCore(nn.Module):
                 self.model.prompts = torch.nn.Parameter(weighted_prompts.cuda())
                 optimizer = torch.optim.AdamW([self.model.prompts], lr=1e-1, weight_decay=1e-5)
                 # TODO:做一版实验看看用原来的batch_mean/batch_std来做update
-                outputs, loss, _, _ = forward_and_adapt(x, self.model, optimizer, self.lamda, self.train_info)
+                outputs, loss, batch_mean, batch_std = forward_and_adapt(x, self.model, optimizer, self.lamda, self.train_info)
             self._update_coreset(weights, batch_mean, batch_std)
             
         else:
@@ -125,7 +125,7 @@ class DPCore(nn.Module):
         # torch.save(self.train_info, '/root/autodl-tmp/data/train_info.pth') 
 
         # self.train_info = torch.load('/root/autodl-tmp/data/train_info.pth')
-        self.train_info = torch.load('/home/xugao/DPCore/imagenet/data/ImageNet-C/train_info.pth')
+        self.train_info = torch.load('/mnt/data/xugao/imagenetC/train_info.pth')
         # torch.save(self.train_info, '/media/zybeich/FOA/train_info.pth')
         print('===> calculating mean and variance end')
 

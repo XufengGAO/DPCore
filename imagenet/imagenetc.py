@@ -57,7 +57,7 @@ def evaluate_csc(description):
     
     model, model_name = set_model(description)
     
-    num_rounds = 1
+    num_rounds = 10
     round_error = []
     for round in range(1, num_rounds+1):
         All_error = []
