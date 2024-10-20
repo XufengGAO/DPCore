@@ -112,7 +112,7 @@ dependencies:
     - submitit==1.4.0
     - threadpoolctl==3.0.0
     - tifffile==2021.10.12
-    - timm==0.4.12
+    - timm==1.0.3
     - toml==0.10.2
     - tqdm==4.56.2
     - traitlets==5.1.0
@@ -121,3 +121,4 @@ dependencies:
     - yacs==0.1.8
     - yapf==0.31.0
     - yattag==1.14.0
+    - webdataset==0.2.100
