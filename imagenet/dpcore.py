@@ -79,6 +79,7 @@ class DPCore(nn.Module):
                 self.optimizer = torch.optim.AdamW([self.model.prompts], lr=1e-1, weight_decay=1e-5)
                 is_ID = True
         else:
+            # for 1st batch
             loss_new = loss
             
         return is_ID, batch_mean, batch_std, weighted_prompts, weights, loss, loss_new
@@ -89,6 +90,7 @@ class DPCore(nn.Module):
             for _ in range(self.E_ID):
                 self.model.prompts = torch.nn.Parameter(weighted_prompts.cuda())
                 optimizer = torch.optim.AdamW([self.model.prompts], lr=1e-1, weight_decay=1e-5)
+                # TODO:做一版实验看看用原来的batch_mean/batch_std来做update
                 outputs, loss, batch_mean, batch_std = forward_and_adapt(x, self.model, optimizer, self.lamda, self.train_info)
             self._update_coreset(weights, batch_mean, batch_std)
             
@@ -122,7 +124,8 @@ class DPCore(nn.Module):
         # # save train_info as .pth file
         # torch.save(self.train_info, '/root/autodl-tmp/data/train_info.pth') 
 
-        self.train_info = torch.load('/root/autodl-tmp/data/train_info.pth')
+        # self.train_info = torch.load('/root/autodl-tmp/data/train_info.pth')
+        self.train_info = torch.load('/home/xugao/DPCore/imagenet/data/ImageNet-C/train_info.pth')
         # torch.save(self.train_info, '/media/zybeich/FOA/train_info.pth')
         print('===> calculating mean and variance end')
 
@@ -206,7 +209,7 @@ def forward_and_adapt(x, model: PromptViT, optimizer, lamda, train_info):
     loss = lamda * std_loss + mean_loss
     
     # output = model.vit.head(cls_features)
-    output = model.vit.forward_head(features)
+    output = model.vit.forward_head(features) # the final prediction by vit
     
     loss.backward()
     optimizer.step()
