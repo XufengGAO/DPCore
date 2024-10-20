@@ -94,7 +94,7 @@ def evaluate_csc(description):
 
                         total_samples += x_test.shape[0]
 
-                        logger.info(f"Current batch {batch_idx} acc % {cur_acc:.3%}")
+                        logger.info(f"[{corruption_type}/{severity}], Current batch {batch_idx} acc % {cur_acc:.3%}")
 
                 acc = acc.item() / total_samples
                 err = 1. - acc

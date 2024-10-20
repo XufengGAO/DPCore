@@ -212,11 +212,12 @@ def load_imagenetc_custom(
     assert len(corruptions) == 1, "so far only one corruption is supported (that's how this function is called in eval.py"
 
     # data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
-    data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
+    # data_folder_path = Path(data_dir) / CORRUPTIONS_DIR_NAMES[BenchmarkDataset.imagenet] / corruptions[0] / str(severity)
+    data_folder_path = Path(data_dir) / "imagenetC" / corruptions[0] / str(severity)
     imagenet = CustomImageFolder(data_folder_path, transforms_test)
 
     test_loader = data.DataLoader(imagenet, batch_size=n_examples,
-                                  shuffle=shuffle, num_workers=2,)
+                                  shuffle=shuffle, num_workers=0,)
 
 
     return test_loader
