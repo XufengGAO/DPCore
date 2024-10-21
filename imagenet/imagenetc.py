@@ -134,7 +134,7 @@ def get_webds_loader(dset_name):
         .to_tuple("input.jpg", "output.cls")
         .map_tuple(preproc, identity)
     )
-    dataloader = torch.utils.data.DataLoader(dataset, num_workers=0, batch_size=64)
+    dataloader = torch.utils.data.DataLoader(dataset, num_workers=2, batch_size=64)
     return dataloader
 
 def evaluate_ccc(description):
