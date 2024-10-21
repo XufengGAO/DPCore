@@ -18,6 +18,7 @@ CORRUPTION:
     - elastic_transform
     - pixelate
     - jpeg_compression
+  NUM_EX: 50000  
 MODEL:
   ADAPTATION: dpcore
   ARCH: Standard_VITB

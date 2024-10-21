@@ -18,6 +18,7 @@ from vpt import PromptViT
 from dpcore import DPCore
 
 import pdb
+import json
 
 import webdataset as wds
 import torchvision.transforms as trn
@@ -223,7 +224,20 @@ def evaluate_cdc(description):
 
     corruptions = cfg.CORRUPTION.TYPE
     num_total_batches = cfg.CORRUPTION.NUM_EX // cfg.TEST.BATCH_SIZE + 1
-    cdc_domain_order = generate_cdc_order(corruptions, num_total_batches)
+
+    cdc_order_file = '/home/xugao/DPCore/imagenet/data/ImageNet-C/cdc_orders.txt'
+    if os.path.exists(cdc_order_file):
+        logger.info("Use pre-exist cdc order file")
+        with open(cdc_order_file, 'r') as f:
+            data = json.load(f)
+        quick_cdc_order = data['quick_cdc_order']
+        full_cdc_order = data['full_cdc_order']
+        if cfg.CORRUPTION.NUM_EX <= 6000:
+            cdc_domain_order = quick_cdc_order
+        else:
+            cdc_domain_order = full_cdc_order
+    else:
+        cdc_domain_order = generate_cdc_order(corruptions, num_total_batches)
 
     for ii, severity in enumerate(cfg.CORRUPTION.SEVERITY):
         domain_iters = {}
@@ -388,4 +402,4 @@ def setup_dpcore(args, model):
     return adapt_model
 
 if __name__ == '__main__':
-    evaluate_csc('"Imagenet-C evaluation.')
+    evaluate_cdc('"Imagenet-C evaluation.')
